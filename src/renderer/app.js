@@ -113,7 +113,9 @@ async function checkRouter(desiredIp) {
 
 // ---------------- Step 2: images ----------------
 
-const LETTER = { ubuntu: 'U', 'debian-live': 'D', 'debian-installer': 'D', 'fedora-live': 'F', 'redhat-installer': 'R', proxmox: 'P', nutanix: 'N', 'nutanix-ce': 'N' };
+const LETTER = { ubuntu: 'U', 'debian-live': 'D', 'debian-installer': 'D', 'fedora-live': 'F', 'redhat-installer': 'R', proxmox: 'P', nutanix: 'N', 'nutanix-ce': 'N', 'jetson-installer': 'J' };
+const FAMILY_NAME = { ubuntu: 'Ubuntu live/installer', 'debian-live': 'Debian live', 'fedora-live': 'Fedora live', 'redhat-installer': 'Installer (Anaconda)', proxmox: 'Proxmox (loaded into RAM)', 'nutanix-ce': 'Nutanix CE (loaded into RAM, experimental)', 'jetson-installer': 'NVIDIA Jetson installer (experimental)' };
+const CATALOG_FAMILY = { 'ubuntu-server': 'ubuntu', 'debian-live': 'debian-live', 'fedora-workstation': 'fedora-live', rocky: 'redhat-installer', alma: 'redhat-installer', 'centos-stream': 'redhat-installer', proxmox: 'proxmox', 'nutanix-ce': 'nutanix-ce', jetson: 'jetson-installer' };
 
 function renderImages() {
   const ul = $('#image-list');
@@ -121,7 +123,8 @@ function renderImages() {
   $('#images-badge').textContent = S.images.length ? `${ready} ready` : '';
   $('#images-badge').className = 'badge ' + (ready ? 'ok' : 'warn');
   if (!S.images.length) {
-    ul.innerHTML = '<li class="empty">No images yet. Paste an ISO link above — or just use the online installers below.</li>';
+    ul.innerHTML = '<li class="empty">No images yet. Paste an ISO link above, use Quick download, or just use the online installers below.</li>';
+    renderCatalog();
     return;
   }
   ul.innerHTML = S.images
@@ -134,7 +137,7 @@ function renderImages() {
       if (i.status === 'unsupported') (meta = esc(i.reason)), (cls = 'warn');
       if (i.status === 'error') (meta = esc(i.error)), (cls = 'err');
       if (i.status === 'paused') meta = `Paused at ${pct}%`;
-      if (i.status === 'ready') meta = `${fmtSize(i.size)} · ${esc({ ubuntu: 'Ubuntu live/installer', 'debian-live': 'Debian live', 'fedora-live': 'Fedora live', 'redhat-installer': 'Installer (Anaconda)', proxmox: 'Proxmox (loaded into RAM)', 'nutanix-ce': 'Nutanix CE (loaded into RAM, experimental)' }[i.family] || i.family)}`;
+      if (i.status === 'ready') meta = `${fmtSize(i.size)} · ${esc(FAMILY_NAME[i.family] || i.family)}`;
       const btns = [
         i.status === 'downloading' ? `<button data-act="pause" data-id="${i.id}">Pause</button>` : '',
         ['paused', 'error'].includes(i.status) && i.url ? `<button data-act="retry" data-id="${i.id}">${i.status === 'paused' ? 'Resume' : 'Retry'}</button>` : '',
@@ -148,6 +151,7 @@ function renderImages() {
         <div class="btns">${btns}</div></li>`;
     })
     .join('');
+  renderCatalog();
 }
 
 $('#image-list').addEventListener('click', async (e) => {
@@ -265,7 +269,6 @@ $('#log-clear').onclick = () => ($('#log').textContent = '');
 
 pxe.onLog(log);
 pxe.onImages((imgs) => {
-  if (S.catalog) setTimeout(renderCatalog, 0);
   S.images = imgs;
   renderImages();
 });
@@ -287,7 +290,7 @@ pxe.onClient((c) => {
 });
 
 (async function init() {
-  S = await call(pxe.state);
+  S = { ...(await call(pxe.state)), catalog: S.catalog };
   $('#r-host').value = S.settings.router?.host || '192.168.1.1';
   $('#r-user').value = S.settings.router?.user || 'admin';
   $('#s-port').value = S.settings.httpPort || 8080;
@@ -316,6 +319,7 @@ async function loadCatalog() {
   renderCatalog();
 }
 function renderCatalog() {
+  if (!S.catalog) return; // still loading, or the lookup failed: keep the message loadCatalog() put there
   const have = new Set(S.images.map((i) => i.url));
   $('#quick-list').innerHTML = (S.catalog || [])
     .map((c) => {
@@ -323,8 +327,12 @@ function renderCatalog() {
       const btn = c.url
         ? `<button data-dl="${esc(c.id)}" ${added ? 'disabled' : ''}>${added ? 'Added' : 'Download'}</button>`
         : '';
-      const link = `<a href="#" data-page="${esc(c.page)}">Open download page</a>`;
-      return `<li class="img"><div class="img-main"><div class="img-title">${esc(c.name)}${c.version ? ` <span class="hint">${esc(c.version)}${c.live ? '' : ' (pinned link)'}</span>` : ''}</div><div class="img-meta">${esc(c.note || '')}</div></div><div class="img-actions">${btn} ${link}</div></li>`;
+      const link = `<a class="dl-link" href="#" data-page="${esc(c.page)}">Open download page</a>`;
+      const fam = CATALOG_FAMILY[c.id] || 'none';
+      const ver = c.version ? `<span class="status">${esc(c.version)}${c.live ? '' : ' · pinned link'}</span>` : '';
+      return `<li class="img"><span class="distro ${esc(fam)}">${LETTER[fam] || '?'}</span>
+        <div><div><span class="title">${esc(c.name)}</span>${ver}</div><div class="meta">${esc(c.note || '')}</div></div>
+        <div class="btns">${btn}${link}</div></li>`;
     })
     .join('');
 }
