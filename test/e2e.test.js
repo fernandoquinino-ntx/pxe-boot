@@ -14,7 +14,7 @@ const { parsePacket } = require('../src/core/proxydhcp');
 
 const canBindLow = process.platform !== 'linux' || process.getuid?.() === 0;
 
-test('service: ISO → menu → kernel over HTTP → TFTP → proxy-DHCP', { skip: !canBindLow && 'needs root for ports 67/69' }, async () => {
+test('service: ISO → menu → kernel over HTTP → TFTP → proxy-DHCP', { skip: !canBindLow && 'needs root for ports 67/69', timeout: 30000 }, async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pxe-e2e-'));
   const svc = new PxeService({ dataDir: dir });
   for (const f of ['undionly.kpxe', 'ipxe.efi', 'ipxe-arm64.efi']) fs.writeFileSync(path.join(svc.bootDir, f), Buffer.alloc(2000, 5));
@@ -37,12 +37,13 @@ test('service: ISO → menu → kernel over HTTP → TFTP → proxy-DHCP', { ski
     // TFTP: fetch undionly.kpxe
     const tftp = await new Promise((resolve, reject) => {
       const s = dgram.createSocket('udp4');
+      const tm = setTimeout(() => (s.close(), reject(new Error('tftp timeout'))), 5000);
       const parts = [];
       s.on('message', (m, r) => {
         if (m.readUInt16BE(0) !== 3) return reject(new Error('tftp op ' + m.readUInt16BE(0)));
         parts.push(m.subarray(4));
         s.send(Buffer.from([0, 4, m[2], m[3]]), r.port, r.address);
-        if (m.length - 4 < 512) (s.close(), resolve(Buffer.concat(parts)));
+        if (m.length - 4 < 512) (clearTimeout(tm), s.close(), resolve(Buffer.concat(parts)));
       });
       s.send(Buffer.from('\0\x01undionly.kpxe\0octet\0', 'latin1'), 69, '127.0.0.1');
     });

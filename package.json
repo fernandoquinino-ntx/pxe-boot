@@ -7,7 +7,7 @@
   "license": "MIT",
   "scripts": {
     "start": "electron .",
-    "test": "node --test test/*.test.js",
+    "test": "node --test --test-timeout=60000 test/*.test.js",
     "dist:mac": "electron-builder --mac",
     "dist:win": "electron-builder --win",
     "dist": "electron-builder --mac --win"
