@@ -97,7 +97,14 @@ jobs:
             TAG="v$(node -p "require('./package.json').version")"
           fi
           echo "Releasing $TAG at $GITHUB_SHA"; ls -l dist
-          gh release delete "$TAG" --repo "$GITHUB_REPOSITORY" --yes 2>/dev/null || true
+          # a published version is immutable: never replace an existing release
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Release $TAG already exists. Bump the version in package.json (semver) and CHANGELOG.md instead of overwriting it."; exit 1
+          fi
+          # release notes = this version's section of CHANGELOG.md
+          V="${TAG#v}"
+          awk -v v="$V" '/^## \[/{p=index($0,"["v"]")>0; next} p' CHANGELOG.md > notes.md
+          [ -s notes.md ] || { echo "CHANGELOG.md has no entry for $V"; exit 1; }
+          printf '\nApps are unsigned: on macOS run xattr -cr "/Applications/PXE Lab Installer.app" once; on Windows choose More info > Run anyway.\n' >> notes.md
           gh release create "$TAG" dist/* --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
-            --title "PXE Lab Installer $TAG" \
-            --notes "Download the .dmg (macOS) or Setup .exe (Windows). Apps are unsigned: on macOS right-click > Open; on Windows choose More info > Run anyway."
+            --title "PXE Lab Installer $TAG" --notes-file notes.md
