@@ -5,12 +5,13 @@
   "description": "Install Linux over the network: proxy-DHCP + TFTP + HTTP boot server with an iPXE menu, and one-click MikroTik setup.",
   "main": "src/main.js",
   "license": "MIT",
+  "author": "PXE Lab Installer",
   "scripts": {
     "start": "electron .",
     "test": "node --test --test-timeout=60000 test/*.test.js",
-    "dist:mac": "electron-builder --mac",
-    "dist:win": "electron-builder --win",
-    "dist": "electron-builder --mac --win"
+    "dist:mac": "electron-builder --mac --publish never",
+    "dist:win": "electron-builder --win --publish never",
+    "dist": "electron-builder --mac --win --publish never"
   },
   "devDependencies": {
     "electron": ">=33.0.0",
