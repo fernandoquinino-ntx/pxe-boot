@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; img-src 'self' data:" />
+  <title>PXE Lab Installer</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="top">
+    <div class="brand">
+      <svg viewBox="0 0 32 32" class="logo" aria-hidden="true"><rect x="3" y="5" width="26" height="16" rx="3"/><path d="M11 27h10M16 21v6"/><path class="pulse" d="M8 13h4l2-4 4 8 2-4h4"/></svg>
+      <div>
+        <h1>PXE Lab Installer</h1>
+        <p class="sub">Install Linux on any machine in your lab, straight from the network.</p>
+      </div>
+    </div>
+    <div id="server-pill" class="pill off"><span class="dot"></span><span id="server-pill-text">Server stopped</span></div>
+  </header>
+
+  <main>
+    <!-- STEP 1 -->
+    <section class="card" id="step-router">
+      <div class="step-head">
+        <span class="num">1</span>
+        <div>
+          <h2>Connect your MikroTik</h2>
+          <p>The app gives this computer a fixed address on the router and tells the router where the boot server is.</p>
+        </div>
+        <span class="badge" id="router-badge"></span>
+      </div>
+      <form id="router-form" class="grid3" autocomplete="off">
+        <label>Router IP<input id="r-host" placeholder="192.168.1.1" required /></label>
+        <label>Username<input id="r-user" placeholder="admin" required /></label>
+        <label>Password<input id="r-pass" type="password" placeholder="Router password" /></label>
+        <div class="actions span3">
+          <button type="submit" class="primary" id="r-check">Check router</button>
+          <span class="hint">Nothing is changed until you press “Apply”. The password is never saved.</span>
+        </div>
+      </form>
+      <div id="plan" class="plan hidden"></div>
+    </section>
+
+    <!-- STEP 2 -->
+    <section class="card" id="step-images">
+      <div class="step-head">
+        <span class="num">2</span>
+        <div>
+          <h2>Add Linux images</h2>
+          <p>Paste the download link of an ISO. Ubuntu, Debian Live, Fedora, Rocky, AlmaLinux and CentOS Stream are supported.</p>
+        </div>
+        <span class="badge" id="images-badge"></span>
+      </div>
+      <form id="url-form" class="url-row">
+        <input id="iso-url" placeholder="https://…/ubuntu-24.04-live-server-amd64.iso" />
+        <button type="submit" class="primary">Add link</button>
+        <button type="button" id="add-file">Add ISO file…</button>
+      </form>
+      <div class="getlinks">
+        <span>Find ISO links:</span>
+        <a href="https://ubuntu.com/download/server" target="_blank">Ubuntu</a>
+        <a href="https://www.debian.org/CD/live/" target="_blank">Debian Live</a>
+        <a href="https://fedoraproject.org/workstation/download" target="_blank">Fedora</a>
+        <a href="https://rockylinux.org/download" target="_blank">Rocky</a>
+        <a href="https://almalinux.org/get-almalinux/" target="_blank">AlmaLinux</a>
+      </div>
+      <ul id="image-list" class="images"></ul>
+      <div class="builtins">
+        <h3>Always in the menu (need internet on the booting machine)</h3>
+        <label class="toggle"><input type="checkbox" id="b-debian" /> <span>Debian stable – network installer</span></label>
+        <label class="toggle"><input type="checkbox" id="b-netboot" /> <span>netboot.xyz – online menu with dozens of distros</span></label>
+      </div>
+    </section>
+
+    <!-- STEP 3 -->
+    <section class="card" id="step-server">
+      <div class="step-head">
+        <span class="num">3</span>
+        <div>
+          <h2>Start the network boot server</h2>
+          <p>Then turn on a lab machine and choose “Network boot” (PXE) in its boot menu.</p>
+        </div>
+      </div>
+      <div class="grid3">
+        <label>Serve from this address<select id="s-ip"></select></label>
+        <label>Web port<input id="s-port" type="number" min="1" max="65535" /></label>
+        <label>Menu timeout (seconds)<input id="s-timeout" type="number" min="5" max="600" /></label>
+      </div>
+      <div class="actions">
+        <button class="primary big" id="s-toggle">Start server</button>
+        <span class="hint" id="s-hint"></span>
+      </div>
+      <div id="clients" class="clients hidden">
+        <h3>Machines that asked to boot</h3>
+        <ul id="client-list"></ul>
+      </div>
+      <details class="advanced">
+        <summary>Boot files & troubleshooting</summary>
+        <div id="bootfiles" class="bootfiles"></div>
+        <ul class="tips">
+          <li>Turn <b>Secure Boot off</b> on the machines you want to install (the iPXE loader is not signed).</li>
+          <li>Ubuntu downloads the whole ISO into memory: the machine needs more RAM than the ISO size + 1&nbsp;GB.</li>
+          <li>macOS/Windows may ask to allow incoming connections the first time — choose <b>Allow</b>.</li>
+          <li>Raspberry Pi boards don’t use PXE like PCs; they need UEFI firmware on an SD card first.</li>
+        </ul>
+        <button id="open-data">Open data folder</button>
+      </details>
+    </section>
+
+    <section class="card log-card">
+      <div class="log-head"><h3>Activity</h3><button id="log-clear" class="link">Clear</button></div>
+      <pre id="log"></pre>
+    </section>
+  </main>
+
+  <div id="toast" class="toast hidden"></div>
+  <script src="app.js"></script>
+</body>
+</html>

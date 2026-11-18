@@ -1,0 +1,36 @@
+{
+  "name": "pxe-lab-installer",
+  "productName": "PXE Lab Installer",
+  "version": "1.0.0",
+  "description": "Install Linux over the network: proxy-DHCP + TFTP + HTTP boot server with an iPXE menu, and one-click MikroTik setup.",
+  "main": "src/main.js",
+  "license": "MIT",
+  "scripts": {
+    "start": "electron .",
+    "test": "node --test test/*.test.js",
+    "dist:mac": "electron-builder --mac",
+    "dist:win": "electron-builder --win",
+    "dist": "electron-builder --mac --win"
+  },
+  "devDependencies": {
+    "electron": ">=33.0.0",
+    "electron-builder": ">=25.1.8"
+  },
+  "build": {
+    "appId": "lab.pxe.installer",
+    "productName": "PXE Lab Installer",
+    "files": ["src/**/*", "package.json"],
+    "directories": { "output": "dist" },
+    "mac": {
+      "category": "public.app-category.utilities",
+      "target": [{ "target": "dmg", "arch": ["arm64", "x64"] }]
+    },
+    "win": {
+      "target": [{ "target": "nsis", "arch": ["x64"] }]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    }
+  }
+}
