@@ -265,6 +265,7 @@ $('#log-clear').onclick = () => ($('#log').textContent = '');
 
 pxe.onLog(log);
 pxe.onImages((imgs) => {
+  if (S.catalog) setTimeout(renderCatalog, 0);
   S.images = imgs;
   renderImages();
 });
@@ -299,3 +300,49 @@ pxe.onClient((c) => {
   renderBootfiles();
   log(`Data folder: ${S.dataDir}`);
 })();
+
+// ---- Quick download catalog (latest ISO of each supported OS, looked up on the vendor mirrors) ----
+async function loadCatalog() {
+  const ul = $('#quick-list');
+  ul.innerHTML = '<li class="empty">Looking up the latest versions…</li>';
+  let items = [];
+  try {
+    items = await call(pxe.catalog);
+  } catch (e) {
+    ul.innerHTML = `<li class="empty">Could not look up versions: ${esc(e.message)}</li>`;
+    return;
+  }
+  S.catalog = items;
+  renderCatalog();
+}
+function renderCatalog() {
+  const have = new Set(S.images.map((i) => i.url));
+  $('#quick-list').innerHTML = (S.catalog || [])
+    .map((c) => {
+      const added = c.url && have.has(c.url);
+      const btn = c.url
+        ? `<button data-dl="${esc(c.id)}" ${added ? 'disabled' : ''}>${added ? 'Added' : 'Download'}</button>`
+        : '';
+      const link = `<a href="#" data-page="${esc(c.page)}">Open download page</a>`;
+      return `<li class="img"><div class="img-main"><div class="img-title">${esc(c.name)}${c.version ? ` <span class="hint">${esc(c.version)}${c.live ? '' : ' (pinned link)'}</span>` : ''}</div><div class="img-meta">${esc(c.note || '')}</div></div><div class="img-actions">${btn} ${link}</div></li>`;
+    })
+    .join('');
+}
+$('#quick-list').onclick = async (e) => {
+  const page = e.target.dataset.page;
+  if (page) { e.preventDefault(); pxe.openUrl(page); return; }
+  const id = e.target.dataset.dl;
+  if (!id) return;
+  const c = (S.catalog || []).find((x) => x.id === id);
+  if (!c || !c.url) return;
+  e.target.disabled = true;
+  try {
+    S.images = await call(pxe.addUrl, c.url);
+    renderImages();
+    renderCatalog();
+  } catch (err) {
+    e.target.disabled = false;
+  }
+};
+$('#quick-refresh').onclick = loadCatalog;
+loadCatalog();

@@ -157,3 +157,5 @@ button:disabled { opacity: 0.55; cursor: progress; }
 .toast { position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%); padding: 11px 18px; border-radius: 10px; background: var(--ink); color: var(--card); font-weight: 600; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25); max-width: 80vw; z-index: 10; }
 .toast.err { background: var(--err); color: #fff; }
 @media (max-width: 760px) { .grid3 { grid-template-columns: 1fr; } .url-row { grid-template-columns: 1fr; } .facts { grid-template-columns: 1fr; } }
+
+.quick{margin:12px 0}.quick-head{display:flex;justify-content:space-between;align-items:center}.quick-head h3{margin:0;font-size:14px}
