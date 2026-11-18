@@ -194,6 +194,9 @@ class ProxyDhcpServer extends EventEmitter {
       const reply = buildPacket({ req: p, msgType: DHCP.OFFER, serverIp: this.serverIp, bootFile: boot.file, vendorClass: boot.vendor });
       if (p.giaddr !== '0.0.0.0') {
         this.sock67.send(reply, this.ports.dhcp, p.giaddr, () => {}); // via DHCP relay
+      } else if (rinfo.address.startsWith('127.')) {
+        // local client (loopback): broadcasts are not looped back to local sockets on macOS, so answer directly
+        this.sock67.send(reply, this.ports.client, rinfo.address, () => {});
       } else {
         // subnet broadcast leaves through the right interface on multi-homed machines
         for (const d of new Set([broadcastFor(this.serverIp, this.netmask), '255.255.255.255'])) this.sock67.send(reply, this.ports.client, d, () => {});
