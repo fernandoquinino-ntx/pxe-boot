@@ -112,6 +112,8 @@ button:disabled { opacity: 0.55; cursor: progress; }
 .distro.debian-live, .distro.debian-installer { background: #c70036; }
 .distro.fedora-live { background: #3c6eb4; }
 .distro.redhat-installer { background: #10b981; }
+.distro.proxmox { background: #e57000; }
+.distro.nutanix { background: #6b4fbb; }
 .distro.unknown, .distro.windows, .distro.none { background: #7a808c; }
 .img .title { font-weight: 600; outline: none; border-radius: 4px; }
 .img .title[contenteditable='true']:focus { box-shadow: 0 0 0 2px var(--accent-soft); }

@@ -113,7 +113,7 @@ async function checkRouter(desiredIp) {
 
 // ---------------- Step 2: images ----------------
 
-const LETTER = { ubuntu: 'U', 'debian-live': 'D', 'debian-installer': 'D', 'fedora-live': 'F', 'redhat-installer': 'R' };
+const LETTER = { ubuntu: 'U', 'debian-live': 'D', 'debian-installer': 'D', 'fedora-live': 'F', 'redhat-installer': 'R', proxmox: 'P', nutanix: 'N' };
 
 function renderImages() {
   const ul = $('#image-list');
@@ -134,7 +134,7 @@ function renderImages() {
       if (i.status === 'unsupported') (meta = esc(i.reason)), (cls = 'warn');
       if (i.status === 'error') (meta = esc(i.error)), (cls = 'err');
       if (i.status === 'paused') meta = `Paused at ${pct}%`;
-      if (i.status === 'ready') meta = `${fmtSize(i.size)} · ${esc({ ubuntu: 'Ubuntu live/installer', 'debian-live': 'Debian live', 'fedora-live': 'Fedora live', 'redhat-installer': 'Installer (Anaconda)' }[i.family] || i.family)}`;
+      if (i.status === 'ready') meta = `${fmtSize(i.size)} · ${esc({ ubuntu: 'Ubuntu live/installer', 'debian-live': 'Debian live', 'fedora-live': 'Fedora live', 'redhat-installer': 'Installer (Anaconda)', proxmox: 'Proxmox (loaded into RAM)' }[i.family] || i.family)}`;
       const btns = [
         i.status === 'downloading' ? `<button data-act="pause" data-id="${i.id}">Pause</button>` : '',
         ['paused', 'error'].includes(i.status) && i.url ? `<button data-act="retry" data-id="${i.id}">${i.status === 'paused' ? 'Resume' : 'Retry'}</button>` : '',

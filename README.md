@@ -31,6 +31,10 @@ The apps aren't code-signed. On macOS, right-click the app → **Open** the firs
 | Debian **live** ISOs | `live/filesystem.squashfs` | `boot=live fetch=` |
 | Fedora Workstation/Spins (live) | `images/pxeboot` + `LiveOS/squashfs.img` | `root=live:` |
 | Fedora Server/Everything, Rocky, AlmaLinux, CentOS Stream, RHEL | `images/pxeboot` + `.treeinfo` | Anaconda with `inst.repo=` |
+| Proxmox VE / Backup Server / Mail Gateway (x86-64 only) | `boot/linux26` + `boot/initrd.img` | ISO streamed as a second initrd (`/proxmox.iso`), `ramdisk_size=16777216`. Needs RAM > ISO size + ~2 GB |
+| Nutanix CE | recognised, **not supported** | No documented network-boot method; install from USB |
+
+Raspberry Pi blades need UEFI firmware first: see [docs/raspberry-pi-uefi.md](docs/raspberry-pi-uefi.md).
 | Debian stable (built-in entry) | — | Official netboot installer from deb.debian.org |
 | netboot.xyz (built-in entry) | — | Online menu with dozens of distros |
 

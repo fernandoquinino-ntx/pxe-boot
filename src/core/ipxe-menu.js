@@ -1,7 +1,7 @@
 'use strict';
 // Builds the iPXE boot menu shown on every machine that boots from the network.
 
-const { bootArgs } = require('./detect');
+const { bootArgs, extraInitrds } = require('./detect');
 
 const BUILTINS = [
   {
@@ -56,7 +56,9 @@ function buildMenu(images, opts) {
     const k = `\${server}/iso/${img.id}${img.kernel}`;
     const i = `\${server}/iso/${img.id}${img.initrd}`;
     const args = bootArgs(img, base);
-    lines.push(`:img-${img.id}`, `echo Loading ${safeText(img.label)} ...`, `kernel ${k} initrd=initrd ${args} || goto failed`, `initrd --name initrd ${i} || goto failed`, 'boot || goto failed', '');
+    const extra = extraInitrds(img, base).map((x) => `initrd --name ${x.name} ${x.url} /${x.name} || goto failed`);
+    const note = img.family === 'proxmox' ? ['echo The whole ISO is loaded into RAM: this machine needs more RAM than the ISO size + 2 GB.'] : [];
+    lines.push(`:img-${img.id}`, `echo Loading ${safeText(img.label)} ...`, ...note, `kernel ${k} initrd=initrd ${args} || goto failed`, `initrd --name initrd ${i} || goto failed`, ...extra, 'boot || goto failed', '');
   }
   for (const b of extras) lines.push(`:${b.id}`, b.script(base), '');
 

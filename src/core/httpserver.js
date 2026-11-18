@@ -111,6 +111,12 @@ class BootHttpServer extends EventEmitter {
         if (!req.headers.range) this.emit('log', `${who} is downloading the full ISO ${m[1]}`);
         return this._send(req, res, size, (s, e) => fs.createReadStream(f, { start: s, end: e }), 'application/x-iso9660-image');
       }
+      if ((m = /^\/pveiso\/([\w\-]+)\.cpio$/.exec(url))) {
+        const entry = this.provider.isoCpio?.(m[1]);
+        if (!entry) return this._404(res);
+        if (!req.headers.range) this.emit('log', `${who} is loading the Proxmox ISO ${m[1]} into RAM`);
+        return this._send(req, res, entry.size, entry.stream);
+      }
       if ((m = /^\/iso\/([\w\-]+)(\/.*)?$/.exec(url))) {
         const inner = m[2] || '/';
         if (inner.split('/').includes('..')) return this._404(res);

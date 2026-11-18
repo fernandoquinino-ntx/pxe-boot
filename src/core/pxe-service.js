@@ -14,6 +14,7 @@ const { download } = require('./downloader');
 const { ProxyDhcpServer } = require('./proxydhcp');
 const { TftpServer } = require('./tftp');
 const { BootHttpServer } = require('./httpserver');
+const { cpioSingleFile } = require('./cpio');
 
 const BOOTFILES = {
   'undionly.kpxe': ['https://boot.ipxe.org/undionly.kpxe', 'https://boot.ipxe.org/x86_64-pcbios/undionly.kpxe'],
@@ -224,6 +225,10 @@ class PxeService extends EventEmitter {
       isoFile: (id) => {
         const img = svc.images.find((i) => i.id === id && i.status === 'ready');
         return img ? img.file : null;
+      },
+      isoCpio: (id) => {
+        const img = svc.images.find((i) => i.id === id && i.status === 'ready' && i.family === 'proxmox');
+        return img ? cpioSingleFile('proxmox.iso', img.file) : null;
       },
       isoEntry: (id, inner) => {
         const img = svc.images.find((i) => i.id === id && i.status === 'ready');

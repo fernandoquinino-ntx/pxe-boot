@@ -30,12 +30,27 @@ function readText(iso, p) {
 
 /**
  * Returns { supported, family, label, kernel, initrd, mode, reason }
- *  family: ubuntu | debian-live | fedora-live | redhat-installer
+ *  family: ubuntu | debian-live | fedora-live | redhat-installer | proxmox
  *  kernel/initrd: paths inside the ISO
  */
 function detect(iso, fallbackName = 'Linux') {
   const diskInfo = readText(iso, '/.disk/info');
   const volume = iso.volumeId || fallbackName;
+
+  // Nutanix (CE / AOS / AHV): no supported network-boot method
+  if (/nutanix|ahv|phoenix/i.test(volume) || /nutanix/i.test(fallbackName)) {
+    return {
+      supported: false,
+      family: 'nutanix',
+      label: volume,
+      reason: 'Nutanix CE has no documented network-boot method (its installer needs the ISO as a local disk and it is 7 GB or more). Install it from a USB stick instead.',
+    };
+  }
+
+  // Proxmox VE / Backup Server / Mail Gateway: the installer needs the whole ISO inside its initrd
+  if (iso.lookup('/boot/linux26') && iso.lookup('/boot/initrd.img') && (iso.lookup('/.pve-cd-id.txt') || iso.lookup('/proxmox') || /proxmox|pve|pbs|pmg/i.test(volume))) {
+    return { supported: true, family: 'proxmox', label: cleanLabel(volume.replace(/[-_]/g, ' ')) || 'Proxmox', kernel: '/boot/linux26', initrd: '/boot/initrd.img', mode: 'ram' };
+  }
 
   // Ubuntu and flavours (casper live system)
   if (iso.lookup('/casper')) {
@@ -104,9 +119,18 @@ function bootArgs(image, base) {
       return `root=live:${tree}${image.liveImage} rd.live.image rd.neednet=1 ip=dhcp`;
     case 'redhat-installer':
       return `inst.repo=${tree}/ ip=dhcp`;
+    case 'proxmox':
+      // the installer finds the ISO as /proxmox.iso inside the (extra) initrd, which lives in RAM
+      return 'ramdisk_size=16777216 rw quiet splash=silent';
     default:
       return '';
   }
 }
 
-module.exports = { detect, bootArgs, parseIni, cleanLabel };
+/** Extra initrd files an image needs, as [{ name, url }]. */
+function extraInitrds(image, base) {
+  if (image.family === 'proxmox') return [{ name: 'proxmox.iso', url: `${base}/pveiso/${image.id}.cpio` }];
+  return [];
+}
+
+module.exports = { detect, bootArgs, extraInitrds, parseIni, cleanLabel };
