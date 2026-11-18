@@ -70,3 +70,11 @@ test('Nutanix CE: detected from its grub.cfg, ISO downloaded by a shim initrd', 
   assert.equal(arc.length % 512, 0);
   assert.ok(arc.includes(Buffer.from('. /livecd.sh')));
 });
+
+test('Jetson installer ISO is recognised and explained as unsupported', () => {
+  const j = new IsoImage(makeIso(path.join(tmp, 'jetson.iso'), { casper: { Image: Buffer.from('K'), initrd: Buffer.from('I') }, '.disk': { info: Buffer.from('Ubuntu-Server 24.04.3 LTS "Noble Numbat" - Release arm64 (20260807)') } }, { volumeId: 'jetsoninstaller-r39.2.1' }));
+  const info = detect(j);
+  assert.equal(info.supported, false);
+  assert.equal(info.family, 'jetson-installer');
+  assert.match(info.reason, /USB/);
+});

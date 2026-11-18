@@ -37,6 +37,19 @@ function detect(iso, fallbackName = 'Linux') {
   const diskInfo = readText(iso, '/.disk/info');
   const volume = iso.volumeId || fallbackName;
 
+  // NVIDIA Jetson installer ISO (Ubuntu Server arm64 casper layout, kernel named /casper/Image).
+  // Checked against the JetPack 7.2.1 ISO (5.04 GB): the kernel has no NFIT/pmem driver, so it
+  // cannot see an ISO that UEFI HTTP boot keeps in a RAM disk, and casper's url= mode would need
+  // a second 5 GB copy in RAM. Neither fits an Orin Nano (4-8 GB). See docs/jetson-network-boot.md.
+  if (iso.lookup('/casper/Image') && !iso.lookup('/casper/vmlinuz') && /jetson/i.test(volume + ' ' + fallbackName)) {
+    return {
+      supported: false,
+      family: 'jetson-installer',
+      label: cleanLabel(diskInfo) || volume,
+      reason: 'The Jetson installer ISO is 5 GB: it cannot be loaded into a Jetson\'s 4-8 GB of RAM, and the app has no NFS server to share it. Write it to a USB stick (see docs/jetson-network-boot.md).',
+    };
+  }
+
   // Nutanix Community Edition installer (volume label PHOENIX, has /phoenix_version).
   // Its initrd only reads squashfs.img + the ~4.7 GB installer package from a block device
   // labelled PHOENIX, so we network-boot it with a shim initrd that loads the ISO into RAM
