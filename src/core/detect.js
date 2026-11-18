@@ -37,13 +37,16 @@ function detect(iso, fallbackName = 'Linux') {
   const diskInfo = readText(iso, '/.disk/info');
   const volume = iso.volumeId || fallbackName;
 
-  // Nutanix (CE / AOS / AHV): no supported network-boot method
-  if (/nutanix|ahv|phoenix/i.test(volume) || /nutanix/i.test(fallbackName)) {
+  // Nutanix Phoenix / Community Edition installer (volume label PHOENIX, has /phoenix_version).
+  // Checked against CE 2024.08.19 (AOS 6.8.1): its initrd only looks for a block device labelled
+  // PHOENIX (CD or USB) for squashfs.img and the ~4.7 GB installer package, so it cannot install
+  // from an HTTP server without patching the installer.
+  if (iso.lookup('/phoenix_version') || /^phoenix$|nutanix/i.test(volume) || /nutanix|phoenix/i.test(fallbackName)) {
     return {
       supported: false,
       family: 'nutanix',
-      label: volume,
-      reason: 'Nutanix CE has no documented network-boot method (its installer needs the ISO as a local disk and it is 7 GB or more). Install it from a USB stick instead.',
+      label: cleanLabel(readText(iso, '/phoenix_version')) || volume,
+      reason: 'Nutanix CE can only install from a disc or USB stick labelled PHOENIX; its installer has no network-boot path. Write the ISO to a USB stick instead.',
     };
   }
 

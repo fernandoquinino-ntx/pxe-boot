@@ -46,9 +46,10 @@ test('detects Proxmox, serves it as RAM-loaded second initrd; Nutanix is flagged
   const menu = buildMenu([{ ...info, id: 'p1', label: 'Proxmox VE', status: 'ready' }], { base: 'http://h:1' });
   assert.match(menu, /initrd --name proxmox.iso http:\/\/h:1\/pveiso\/p1.cpio \/proxmox.iso/);
 
-  const nut = new IsoImage(makeIso(path.join(tmp, 'nut.iso'), { images: { pxeboot: { vmlinuz: Buffer.from('K'), 'initrd.img': Buffer.from('I') } } }, { volumeId: 'NUTANIX_CE' }));
+  const nut = new IsoImage(makeIso(path.join(tmp, 'nut.iso'), { images: { pxeboot: { vmlinuz: Buffer.from('K'), 'initrd.img': Buffer.from('I') } } }, { volumeId: 'PHOENIX' }));
   const ni = detect(nut);
   assert.equal(ni.supported, false);
   assert.equal(ni.family, 'nutanix');
   assert.match(ni.reason, /USB/);
+  assert.match(ni.reason, /PHOENIX/);
 });
