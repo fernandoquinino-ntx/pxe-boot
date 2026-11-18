@@ -71,10 +71,18 @@ test('Nutanix CE: detected from its grub.cfg, ISO downloaded by a shim initrd', 
   assert.ok(arc.includes(Buffer.from('. /livecd.sh')));
 });
 
-test('Jetson installer ISO is recognised and explained as unsupported', () => {
-  const j = new IsoImage(makeIso(path.join(tmp, 'jetson.iso'), { casper: { Image: Buffer.from('K'), initrd: Buffer.from('I') }, '.disk': { info: Buffer.from('Ubuntu-Server 24.04.3 LTS "Noble Numbat" - Release arm64 (20260807)') } }, { volumeId: 'jetsoninstaller-r39.2.1' }));
+test('Jetson installer ISO is supported over NFS with one menu entry per install target', () => {
+  const grub = 'submenu "Install Jetson" {\n  menuentry "Install on NVMe" {\n    linux /casper/Image autoinstall force-bootdisk=nvme0n1 efi=runtime\n    initrd /casper/initrd\n  }\n  menuentry "Install on USB" {\n    linux /casper/Image autoinstall efi=runtime\n    initrd /casper/initrd\n  }\n}\n';
+  const j = new IsoImage(makeIso(path.join(tmp, 'jetson.iso'), { casper: { Image: Buffer.from('K'), initrd: Buffer.from('I') }, boot: { grub: { 'grub.cfg': Buffer.from(grub) } }, '.disk': { info: Buffer.from('Ubuntu-Server 24.04.3 LTS "Noble Numbat" - Release arm64 (20260807)') } }, { volumeId: 'jetsoninstaller-r39.2.1' }));
   const info = detect(j);
-  assert.equal(info.supported, false);
+  assert.equal(info.supported, true);
   assert.equal(info.family, 'jetson-installer');
-  assert.match(info.reason, /USB/);
+  assert.equal(info.needsNfs, true);
+  assert.equal(info.variants.length, 2);
+  const img = { id: 'jx', ...info };
+  assert.match(bootArgs(img, 'http://192.168.1.2:8080', 0), /force-bootdisk=nvme0n1 .*ip=dhcp netboot=nfs nfsroot=192\.168\.1\.2:\/iso\/jx$/);
+  assert.doesNotMatch(bootArgs(img, 'http://192.168.1.2:8080', 1), /force-bootdisk/);
+  const menu = buildMenu([{ ...img, status: 'ready', label: 'Jetson' }], { base: 'http://192.168.1.2:8080' });
+  assert.match(menu, /:img-jx-1/);
+  assert.match(menu, /item img-jx Jetson - Install on NVMe/);
 });

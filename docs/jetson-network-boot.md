@@ -1,7 +1,16 @@
 # Network-installing NVIDIA Jetson boards: research findings
 
-**Short answer:** for a Jetson Orin Nano (4 or 8 GB) the PXE Lab Installer cannot install the
-JetPack installer ISO over the network today. Use the USB stick (or the Jetson Flasher app).
+**Update (NFS route, experimental):** the app now supports the Orin Nano installer via NFS root.
+It serves the ISO read-only over NFSv3 (portmap on 111, NFS/mountd on 2049) and boots the kernel
+with `ip=dhcp netboot=nfs nfsroot=<server>:/iso/<id>` plus the install-target arguments from the ISO's grub.cfg.
+Tested in QEMU arm64 with the real JetPack 7.2.1 kernel/initrd: casper mounted the ISO over NFS
+(`nfsmount -o nolock -o ro`, TCP v3), the installer started and curtin partitioned the NVMe. GRUB
+(`grubnetaa64.efi.signed`) and iPXE arm64 both reached the kernel. In QEMU, NVIDIA's board check had
+to be faked; real Orin firmware, NIC and DT behaviour are untested. The text below is the earlier
+analysis of why the RAM-based routes fail.
+
+**Earlier short answer:** for a Jetson Orin Nano (4 or 8 GB) the RAM-based routes cannot install the
+JetPack installer ISO over the network. Use the USB stick (or the Jetson Flasher app).
 The original Jetson Nano cannot network-boot with stock firmware at all.
 
 Findings come from two parts: inspecting the real **JetPack 7.2.1 installer ISO**

@@ -268,7 +268,8 @@ class PxeService extends EventEmitter {
     }
     // optional read-only NFSv3 export of every ready ISO at /iso/<id> (e.g. casper netboot=nfs for images too big for RAM)
     let nfs = null;
-    if (this.settings.nfs) {
+    // started automatically when a ready image needs it (Jetson installer); nfsroot= has no port option, so 2049 + portmap on 111 are what the initrd's nfsmount asks for
+    if (this.settings.nfs || this.images.some((i) => i.status === 'ready' && i.needsNfs)) {
       nfs = new NfsServer({
         port: Number(this.settings.nfsPort) || 2049,
         exports: () => svc.images.filter((i) => i.status === 'ready' && i.file).map((i) => ({ path: `/iso/${i.id}`, iso: svc._iso(i) })),

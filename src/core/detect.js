@@ -42,12 +42,18 @@ function detect(iso, fallbackName = 'Linux') {
   // cannot see an ISO that UEFI HTTP boot keeps in a RAM disk, and casper's url= mode would need
   // a second 5 GB copy in RAM. Neither fits an Orin Nano (4-8 GB). See docs/jetson-network-boot.md.
   if (iso.lookup('/casper/Image') && !iso.lookup('/casper/vmlinuz') && /jetson/i.test(volume + ' ' + fallbackName)) {
-    return {
-      supported: false,
-      family: 'jetson-installer',
-      label: cleanLabel(diskInfo) || volume,
-      reason: 'The Jetson installer ISO is 5 GB: it cannot be loaded into a Jetson\'s 4-8 GB of RAM, and the app has no NFS server to share it. Write it to a USB stick (see docs/jetson-network-boot.md).',
-    };
+    // Install targets come from the ISO's own grub.cfg ("Install on NVMe / USB / microSD ...").
+    const grub = readText(iso, '/boot/grub/grub.cfg') || '';
+    const variants = [];
+    const re = /menuentry\s+"([^"]+)"\s*\{\s*linux\s+\/casper\/Image\s+([^\n]*)/g;
+    let m;
+    while ((m = re.exec(grub))) {
+      if (/^Install on/i.test(m[1])) variants.push({ key: variants.length ? `t${variants.length}` : 'nvme', label: m[1].replace(/\s*\(.*\)\s*$/, ''), args: m[2].trim() });
+    }
+    if (!variants.length) variants.push({ key: 'nvme', label: 'Install on NVMe', args: 'autoinstall fsck.mode=skip force-bootdisk=nvme0n1 clk_ignore_unused pd_ignore_unused firmware_class.path=/etc/firmware nospectre_bhb efi=runtime cloud-init=disabled' });
+    // Too big for RAM (5 GB), so casper mounts the extracted tree over NFS (netboot=nfs), served by the app's NFS server.
+    // Verified in QEMU arm64 with the real JetPack 7.2.1 kernel/initrd; real Orin Nano firmware untested. See docs/jetson-network-boot.md.
+    return { supported: true, family: 'jetson-installer', label: `NVIDIA Jetson installer (${cleanLabel(diskInfo) || volume})`, kernel: '/casper/Image', initrd: '/casper/initrd', mode: 'nfs', needsNfs: true, variants };
   }
 
   // Nutanix Community Edition installer (volume label PHOENIX, has /phoenix_version).
@@ -128,7 +134,8 @@ function cleanLabel(info) {
 }
 
 /** Kernel command line for an image, given the server's base URL. */
-function bootArgs(image, base) {
+function bootArgs(image, base, variantIdx = 0) {
+  const nfsHost = (/^https?:\/\/([^:/]+)/.exec(base) || [])[1] || '';
   const isoUrl = `${base}/isofile/${image.id}.iso`;
   const tree = `${base}/iso/${image.id}`;
   switch (image.family) {
@@ -141,6 +148,8 @@ function bootArgs(image, base) {
       return `root=live:${tree}${image.liveImage} rd.live.image rd.neednet=1 ip=dhcp`;
     case 'redhat-installer':
       return `inst.repo=${tree}/ ip=dhcp`;
+    case 'jetson-installer':
+      return `${(image.variants && image.variants[variantIdx || 0] || {}).args || ''} ip=dhcp netboot=nfs nfsroot=${nfsHost}:/iso/${image.id}`;
     case 'nutanix-ce':
       // original grub.cfg arguments, plus where the shim downloads the ISO from
       return `${image.ceArgs} CE_ISO_URL=${isoUrl} CE_ISO_SIZE=${image.size}`;
