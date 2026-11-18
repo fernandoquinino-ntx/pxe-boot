@@ -12,6 +12,7 @@ contextBridge.exposeInMainWorld('pxe', {
   state: () => call('state'),
   routerPlan: (args) => call('router:plan', args),
   routerApply: () => call('router:apply'),
+  catalog: () => call('catalog:list'),
   addUrl: (url) => call('images:addUrl', url),
   addFile: () => call('images:addFile'),
   removeImage: (id) => call('images:remove', id),

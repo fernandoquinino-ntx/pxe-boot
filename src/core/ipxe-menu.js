@@ -1,7 +1,7 @@
 'use strict';
 // Builds the iPXE boot menu shown on every machine that boots from the network.
 
-const { bootArgs } = require('./detect');
+const { bootArgs, extraInitrds } = require('./detect');
 
 const BUILTINS = [
   {
@@ -39,7 +39,10 @@ function buildMenu(images, opts) {
 
   if (ready.length) {
     lines.push('item --gap --             ------------ Your images ------------');
-    for (const img of ready) lines.push(`item img-${img.id} ${safeText(img.label)}`);
+    for (const img of ready) {
+      if (img.variants) img.variants.forEach((v, n) => lines.push(`item img-${img.id}${n ? '-' + n : ''} ${safeText(`${img.label} - ${v.label}`)}`));
+      else lines.push(`item img-${img.id} ${safeText(img.label)}`);
+    }
   }
   if (extras.length) {
     lines.push('item --gap --             ------------ Online installers ------------');
@@ -55,8 +58,14 @@ function buildMenu(images, opts) {
   for (const img of ready) {
     const k = `\${server}/iso/${img.id}${img.kernel}`;
     const i = `\${server}/iso/${img.id}${img.initrd}`;
-    const args = bootArgs(img, base);
-    lines.push(`:img-${img.id}`, `echo Loading ${safeText(img.label)} ...`, `kernel ${k} initrd=initrd ${args} || goto failed`, `initrd --name initrd ${i} || goto failed`, 'boot || goto failed', '');
+    const extra = extraInitrds(img, base).map((x) => `initrd --name ${x.name} ${x.url} || goto failed`);
+    const note = img.family === 'proxmox' ? ['echo The whole ISO is loaded into RAM: this machine needs more RAM than the ISO size + 2 GB.'] : img.family === 'nutanix-ce' ? ['echo Nutanix CE: the 7 GB ISO is loaded into RAM first (needs 32 GB RAM). Be patient, this takes several minutes.'] : img.family === 'jetson-installer' ? ['echo Jetson installer: the root filesystem is mounted over NFS from this server.'] : [];
+    const n = img.variants ? img.variants.length : 1;
+    for (let v = 0; v < n; v++) {
+      const args = bootArgs(img, base, v);
+      // Extra initrds are already cpio archives, so no path argument: with one, iPXE would wrap them in another cpio header.
+      lines.push(`:img-${img.id}${v ? '-' + v : ''}`, `echo Loading ${safeText(img.label)} ...`, ...note, `kernel ${k} initrd=initrd ${args} || goto failed`, `initrd --name initrd ${i} || goto failed`, ...extra, 'boot || goto failed', '');
+    }
   }
   for (const b of extras) lines.push(`:${b.id}`, b.script(base), '');
 

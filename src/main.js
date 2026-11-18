@@ -2,6 +2,7 @@
 const { app, BrowserWindow, ipcMain, dialog, shell } = require('electron');
 const path = require('path');
 const { PxeService } = require('./core/pxe-service');
+const { discover } = require('./core/catalog');
 const routerSetup = require('./core/router-setup');
 
 let win;
@@ -81,6 +82,7 @@ app.whenReady().then(() => {
     return { done, plan: session.plan, interfaces: routerSetup.listLocalIPv4() };
   });
 
+  handle('catalog:list', () => discover());
   handle('images:addUrl', (url) => service.addUrl(url) && service.publicImages());
   handle('images:addFile', async () => {
     const r = await dialog.showOpenDialog(win, { title: 'Choose a Linux ISO', filters: [{ name: 'ISO images', extensions: ['iso'] }], properties: ['openFile'] });

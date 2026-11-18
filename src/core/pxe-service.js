@@ -14,6 +14,9 @@ const { download } = require('./downloader');
 const { ProxyDhcpServer } = require('./proxydhcp');
 const { TftpServer } = require('./tftp');
 const { BootHttpServer } = require('./httpserver');
+const { NfsServer } = require('./nfs');
+const { cpioSingleFile, cpioArchive } = require('./cpio');
+const { SHIM } = require('./nutanix');
 
 const BOOTFILES = {
   'undionly.kpxe': ['https://boot.ipxe.org/undionly.kpxe', 'https://boot.ipxe.org/x86_64-pcbios/undionly.kpxe'],
@@ -225,6 +228,16 @@ class PxeService extends EventEmitter {
         const img = svc.images.find((i) => i.id === id && i.status === 'ready');
         return img ? img.file : null;
       },
+      isoCpio: (id) => {
+        const img = svc.images.find((i) => i.id === id && i.status === 'ready' && i.family === 'proxmox');
+        return img ? cpioSingleFile('proxmox.iso', img.file) : null;
+      },
+      ceShim: (id) => {
+        const img = svc.images.find((i) => i.id === id && i.status === 'ready' && i.family === 'nutanix-ce');
+        if (!img) return null;
+        const buf = cpioArchive([{ name: 'ce_installer', data: SHIM, mode: 0o755 }]);
+        return { size: buf.length, stream: (a, b) => require('stream').Readable.from([buf.subarray(a, b + 1)]) };
+      },
       isoEntry: (id, inner) => {
         const img = svc.images.find((i) => i.id === id && i.status === 'ready');
         if (!img) return null;
@@ -253,7 +266,23 @@ class PxeService extends EventEmitter {
       started.forEach((s) => s.stop());
       throw e;
     }
-    this.running = { http, tftp, dhcp, serverIp, httpPort, base, since: Date.now() };
+    // optional read-only NFSv3 export of every ready ISO at /iso/<id> (e.g. casper netboot=nfs for images too big for RAM)
+    let nfs = null;
+    // started automatically when a ready image needs it (Jetson installer); nfsroot= has no port option, so 2049 + portmap on 111 are what the initrd's nfsmount asks for
+    if (this.settings.nfs || this.images.some((i) => i.status === 'ready' && i.needsNfs)) {
+      nfs = new NfsServer({
+        port: Number(this.settings.nfsPort) || 2049,
+        exports: () => svc.images.filter((i) => i.status === 'ready' && i.file).map((i) => ({ path: `/iso/${i.id}`, iso: svc._iso(i) })),
+      });
+      nfs.on('log', (m) => this.log(m));
+      try {
+        await nfs.start();
+      } catch (e) {
+        this.log(`NFS server not started: ${e.message}`);
+        nfs = null;
+      }
+    }
+    this.running = { http, tftp, dhcp, nfs, serverIp, httpPort, base, since: Date.now() };
     this.log(`PXE server running on ${serverIp}. Boot a machine from the network to see the menu.`);
     this.emit('status', this.status());
     return this.status();
@@ -261,7 +290,7 @@ class PxeService extends EventEmitter {
 
   stop() {
     if (!this.running) return this.status();
-    for (const k of ['dhcp', 'tftp', 'http']) this.running[k].stop();
+    for (const k of ['dhcp', 'tftp', 'http', 'nfs']) this.running[k]?.stop();
     this.running = null;
     this.log('PXE server stopped');
     this.emit('status', this.status());

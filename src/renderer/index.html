@@ -47,7 +47,7 @@
         <span class="num">2</span>
         <div>
           <h2>Add Linux images</h2>
-          <p>Paste the download link of an ISO. Ubuntu, Debian Live, Fedora, Rocky, AlmaLinux and CentOS Stream are supported.</p>
+          <p>Use <b>Quick download</b> below, paste an ISO link, or add a file. Supported: Ubuntu, Debian Live, Fedora, Rocky, AlmaLinux, CentOS Stream, Proxmox VE, Nutanix CE (experimental) and the NVIDIA Jetson JetPack installer (experimental, Orin Nano). Use <b>Add ISO file…</b> for ISOs you already downloaded.</p>
         </div>
         <span class="badge" id="images-badge"></span>
       </div>
@@ -56,13 +56,9 @@
         <button type="submit" class="primary">Add link</button>
         <button type="button" id="add-file">Add ISO file…</button>
       </form>
-      <div class="getlinks">
-        <span>Find ISO links:</span>
-        <a href="https://ubuntu.com/download/server" target="_blank">Ubuntu</a>
-        <a href="https://www.debian.org/CD/live/" target="_blank">Debian Live</a>
-        <a href="https://fedoraproject.org/workstation/download" target="_blank">Fedora</a>
-        <a href="https://rockylinux.org/download" target="_blank">Rocky</a>
-        <a href="https://almalinux.org/get-almalinux/" target="_blank">AlmaLinux</a>
+      <div class="quick">
+        <div class="quick-head"><h3>Quick download</h3><button type="button" id="quick-refresh">Look up latest versions</button></div>
+        <ul id="quick-list" class="images"><li class="empty">Looking up the latest versions…</li></ul>
       </div>
       <ul id="image-list" class="images"></ul>
       <div class="builtins">
