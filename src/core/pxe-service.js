@@ -14,7 +14,8 @@ const { download } = require('./downloader');
 const { ProxyDhcpServer } = require('./proxydhcp');
 const { TftpServer } = require('./tftp');
 const { BootHttpServer } = require('./httpserver');
-const { cpioSingleFile } = require('./cpio');
+const { cpioSingleFile, cpioArchive } = require('./cpio');
+const { SHIM } = require('./nutanix');
 
 const BOOTFILES = {
   'undionly.kpxe': ['https://boot.ipxe.org/undionly.kpxe', 'https://boot.ipxe.org/x86_64-pcbios/undionly.kpxe'],
@@ -229,6 +230,12 @@ class PxeService extends EventEmitter {
       isoCpio: (id) => {
         const img = svc.images.find((i) => i.id === id && i.status === 'ready' && i.family === 'proxmox');
         return img ? cpioSingleFile('proxmox.iso', img.file) : null;
+      },
+      ceShim: (id) => {
+        const img = svc.images.find((i) => i.id === id && i.status === 'ready' && i.family === 'nutanix-ce');
+        if (!img) return null;
+        const buf = cpioArchive([{ name: 'ce_installer', data: SHIM, mode: 0o755 }]);
+        return { size: buf.length, stream: (a, b) => require('stream').Readable.from([buf.subarray(a, b + 1)]) };
       },
       isoEntry: (id, inner) => {
         const img = svc.images.find((i) => i.id === id && i.status === 'ready');

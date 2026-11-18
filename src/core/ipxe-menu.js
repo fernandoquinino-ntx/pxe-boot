@@ -56,8 +56,9 @@ function buildMenu(images, opts) {
     const k = `\${server}/iso/${img.id}${img.kernel}`;
     const i = `\${server}/iso/${img.id}${img.initrd}`;
     const args = bootArgs(img, base);
-    const extra = extraInitrds(img, base).map((x) => `initrd --name ${x.name} ${x.url} /${x.name} || goto failed`);
-    const note = img.family === 'proxmox' ? ['echo The whole ISO is loaded into RAM: this machine needs more RAM than the ISO size + 2 GB.'] : [];
+    // These are already cpio archives, so no path argument: with one, iPXE would wrap them in another cpio header.
+    const extra = extraInitrds(img, base).map((x) => `initrd --name ${x.name} ${x.url} || goto failed`);
+    const note = img.family === 'proxmox' ? ['echo The whole ISO is loaded into RAM: this machine needs more RAM than the ISO size + 2 GB.'] : img.family === 'nutanix-ce' ? ['echo Nutanix CE: the 7 GB ISO is loaded into RAM first (needs 32 GB RAM). Be patient, this takes several minutes.'] : [];
     lines.push(`:img-${img.id}`, `echo Loading ${safeText(img.label)} ...`, ...note, `kernel ${k} initrd=initrd ${args} || goto failed`, `initrd --name initrd ${i} || goto failed`, ...extra, 'boot || goto failed', '');
   }
   for (const b of extras) lines.push(`:${b.id}`, b.script(base), '');

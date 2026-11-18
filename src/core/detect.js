@@ -30,23 +30,29 @@ function readText(iso, p) {
 
 /**
  * Returns { supported, family, label, kernel, initrd, mode, reason }
- *  family: ubuntu | debian-live | fedora-live | redhat-installer | proxmox
+ *  family: ubuntu | debian-live | fedora-live | redhat-installer | proxmox | nutanix-ce
  *  kernel/initrd: paths inside the ISO
  */
 function detect(iso, fallbackName = 'Linux') {
   const diskInfo = readText(iso, '/.disk/info');
   const volume = iso.volumeId || fallbackName;
 
-  // Nutanix Phoenix / Community Edition installer (volume label PHOENIX, has /phoenix_version).
-  // Checked against CE 2024.08.19 (AOS 6.8.1): its initrd only looks for a block device labelled
-  // PHOENIX (CD or USB) for squashfs.img and the ~4.7 GB installer package, so it cannot install
-  // from an HTTP server without patching the installer.
+  // Nutanix Community Edition installer (volume label PHOENIX, has /phoenix_version).
+  // Its initrd only reads squashfs.img + the ~4.7 GB installer package from a block device
+  // labelled PHOENIX, so we network-boot it with a shim initrd that loads the ISO into RAM
+  // and attaches it as that device (see nutanix.js). Verified against CE 2024.08.19 (AOS 6.8.1).
   if (iso.lookup('/phoenix_version') || /^phoenix$|nutanix/i.test(volume) || /nutanix|phoenix/i.test(fallbackName)) {
+    const grub = readText(iso, '/EFI/BOOT/grub.cfg') || '';
+    const m = /linuxefi\s+\/boot\/kernel\s+([^\n]*init=\/ce_installer[^\n]*)/.exec(grub);
+    const label = cleanLabel(readText(iso, '/phoenix_version')) || volume;
+    if (m && iso.lookup('/boot/kernel') && iso.lookup('/boot/initrd') && iso.lookup('/squashfs.img')) {
+      return { supported: true, family: 'nutanix-ce', label: `Nutanix CE (${label})`, kernel: '/boot/kernel', initrd: '/boot/initrd', ceArgs: m[1].trim(), mode: 'ram' };
+    }
     return {
       supported: false,
       family: 'nutanix',
-      label: cleanLabel(readText(iso, '/phoenix_version')) || volume,
-      reason: 'Nutanix CE can only install from a disc or USB stick labelled PHOENIX; its installer has no network-boot path. Write the ISO to a USB stick instead.',
+      label,
+      reason: 'This Nutanix ISO is not the Community Edition installer (no CE boot entry), so it cannot be network-booted. Write it to a USB stick instead.',
     };
   }
 
@@ -122,6 +128,9 @@ function bootArgs(image, base) {
       return `root=live:${tree}${image.liveImage} rd.live.image rd.neednet=1 ip=dhcp`;
     case 'redhat-installer':
       return `inst.repo=${tree}/ ip=dhcp`;
+    case 'nutanix-ce':
+      // original grub.cfg arguments, plus where the shim downloads the ISO from
+      return `${image.ceArgs} CE_ISO_URL=${isoUrl} CE_ISO_SIZE=${image.size}`;
     case 'proxmox':
       // the installer finds the ISO as /proxmox.iso inside the (extra) initrd, which lives in RAM
       return 'ramdisk_size=16777216 rw quiet splash=silent';
@@ -133,6 +142,7 @@ function bootArgs(image, base) {
 /** Extra initrd files an image needs, as [{ name, url }]. */
 function extraInitrds(image, base) {
   if (image.family === 'proxmox') return [{ name: 'proxmox.iso', url: `${base}/pveiso/${image.id}.cpio` }];
+  if (image.family === 'nutanix-ce') return [{ name: 'ce-pxe.cpio', url: `${base}/ceshim/${image.id}.cpio` }];
   return [];
 }
 

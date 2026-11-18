@@ -40,4 +40,16 @@ function cpioSingleFile(name, file) {
   return { size, stream };
 }
 
-module.exports = { cpioSingleFile };
+/** Small in-memory archive: entries = [{ name, data: Buffer|string, mode?: 0o755 }] */
+function cpioArchive(entries) {
+  const parts = [];
+  for (const e of entries) {
+    const data = Buffer.isBuffer(e.data) ? e.data : Buffer.from(e.data, 'utf8');
+    parts.push(header(e.name, data.length, 0o100000 | (e.mode ?? 0o644)), data, Buffer.alloc(pad4(data.length)));
+  }
+  parts.push(header('TRAILER!!!', 0, 0));
+  const buf = Buffer.concat(parts);
+  return Buffer.concat([buf, Buffer.alloc((512 - (buf.length % 512)) % 512)]);
+}
+
+module.exports = { cpioSingleFile, cpioArchive };
