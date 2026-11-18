@@ -14,6 +14,7 @@ const { download } = require('./downloader');
 const { ProxyDhcpServer } = require('./proxydhcp');
 const { TftpServer } = require('./tftp');
 const { BootHttpServer } = require('./httpserver');
+const { NfsServer } = require('./nfs');
 const { cpioSingleFile, cpioArchive } = require('./cpio');
 const { SHIM } = require('./nutanix');
 
@@ -265,7 +266,22 @@ class PxeService extends EventEmitter {
       started.forEach((s) => s.stop());
       throw e;
     }
-    this.running = { http, tftp, dhcp, serverIp, httpPort, base, since: Date.now() };
+    // optional read-only NFSv3 export of every ready ISO at /iso/<id> (e.g. casper netboot=nfs for images too big for RAM)
+    let nfs = null;
+    if (this.settings.nfs) {
+      nfs = new NfsServer({
+        port: Number(this.settings.nfsPort) || 2049,
+        exports: () => svc.images.filter((i) => i.status === 'ready' && i.file).map((i) => ({ path: `/iso/${i.id}`, iso: svc._iso(i) })),
+      });
+      nfs.on('log', (m) => this.log(m));
+      try {
+        await nfs.start();
+      } catch (e) {
+        this.log(`NFS server not started: ${e.message}`);
+        nfs = null;
+      }
+    }
+    this.running = { http, tftp, dhcp, nfs, serverIp, httpPort, base, since: Date.now() };
     this.log(`PXE server running on ${serverIp}. Boot a machine from the network to see the menu.`);
     this.emit('status', this.status());
     return this.status();
@@ -273,7 +289,7 @@ class PxeService extends EventEmitter {
 
   stop() {
     if (!this.running) return this.status();
-    for (const k of ['dhcp', 'tftp', 'http']) this.running[k].stop();
+    for (const k of ['dhcp', 'tftp', 'http', 'nfs']) this.running[k]?.stop();
     this.running = null;
     this.log('PXE server stopped');
     this.emit('status', this.status());

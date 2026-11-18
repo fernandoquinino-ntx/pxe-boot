@@ -92,7 +92,62 @@ class IsoImage {
     }
     let suStart = off + 33 + nameLen + (nameLen % 2 === 0 ? 1 : 0);
     const su = buf.subarray(suStart, off + len);
-    return { name, isDir: !!(flags & 2), multiExtent: !!(flags & 0x80), extents: [{ lba, size }], size, su };
+    // recording date: 7 bytes (years since 1900, M, D, h, m, s, GMT offset in 15 min units)
+    const mtime = buf[off + 18] ? Math.floor(Date.UTC(1900 + buf[off + 18], buf[off + 19] - 1, buf[off + 20] || 1, buf[off + 21], buf[off + 22], buf[off + 23]) / 1000) - buf.readInt8(off + 24) * 900 : 0;
+    return { name, isDir: !!(flags & 2), multiExtent: !!(flags & 0x80), extents: [{ lba, size }], size, mtime, su };
+  }
+
+  // Rock Ridge PX (POSIX mode), SL (symlink target) and TF (modify time), following CE areas.
+  _rrAttrs(su) {
+    const out = {};
+    let link = null;
+    const walk = (area, depth) => {
+      for (let i = 0; i + 4 <= area.length; ) {
+        const sig = area.toString('latin1', i, i + 2);
+        const l = area[i + 2];
+        if (!l || i + l > area.length) break;
+        if (sig === 'PX' && l >= 12) out.mode = area.readUInt32LE(i + 4);
+        else if (sig === 'TF' && l >= 5) {
+          const f = area[i + 4];
+          const long = !!(f & 0x80);
+          const tl = long ? 17 : 7;
+          let p = i + 5;
+          for (const bit of [1, 2, 4, 8]) {
+            if (!(f & bit)) continue;
+            if (bit === 2 && p + tl <= i + l) {
+              const t = area.subarray(p, p + tl);
+              if (long) out.mtime = Math.floor(Date.UTC(+t.toString('latin1', 0, 4), +t.toString('latin1', 4, 6) - 1, +t.toString('latin1', 6, 8), +t.toString('latin1', 8, 10), +t.toString('latin1', 10, 12), +t.toString('latin1', 12, 14)) / 1000);
+              else if (t[0]) out.mtime = Math.floor(Date.UTC(1900 + t[0], t[1] - 1, t[2] || 1, t[3], t[4], t[5]) / 1000) - t.readInt8(6) * 900;
+            }
+            p += tl;
+          }
+        } else if (sig === 'SL' && l >= 5) {
+          link = link || '';
+          for (let p = i + 5; p + 2 <= i + l; ) {
+            const cf = area[p];
+            const cl = area[p + 1];
+            let part = '';
+            if (cf & 0x08) part = '/';
+            else if (cf & 0x04) part = '..';
+            else if (cf & 0x02) part = '.';
+            else part = area.toString('utf8', p + 2, p + 2 + cl);
+            link += part;
+            if (!(cf & 0x01) && !(cf & 0x08)) link += '/';
+            p += 2 + cl;
+          }
+          // a record without the CONTINUE flag ended with '/', strip the trailing one at the very end
+        } else if (sig === 'CE' && depth < 4) {
+          const blk = area.readUInt32LE(i + 4);
+          const offs = area.readUInt32LE(i + 12);
+          const clen = area.readUInt32LE(i + 20);
+          walk(this._read(blk * SECTOR + offs, clen), depth + 1);
+        } else if (sig === 'ST') break;
+        i += l;
+      }
+    };
+    walk(su, 0);
+    if (link !== null) out.link = link.length > 1 ? link.replace(/\/$/, '') : link;
+    return out;
   }
 
   _rrName(su) {
@@ -141,6 +196,13 @@ class IsoImage {
       if (this.mode === 'rockridge') {
         const nm = this._rrName(r.su);
         if (nm) r.name = nm;
+        const rr = this._rrAttrs(r.su);
+        if (rr.mode !== undefined) r.mode = rr.mode;
+        if (rr.mtime) r.mtime = rr.mtime;
+        if (rr.link !== undefined && (rr.mode === undefined || (rr.mode & 0o170000) === 0o120000)) {
+          r.link = rr.link;
+          r.isSymlink = true;
+        }
       } else if (this.mode === 'iso') {
         r.name = r.name.toLowerCase();
       }
